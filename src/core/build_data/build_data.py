@@ -22,9 +22,9 @@ ENT_TYPE_HOP = 1
 # Entity mention types: 'NP', 'ORGANIZATION', 'DATE', 'NUMBER', 'MISC', 'ORDINAL', 'DURATION', 'PERSON', 'TIME', 'LOCATION'
 
 def build_kb_data(kb, used_fbkeys=None):
-    entities = defaultdict(int)
-    entity_types = defaultdict(int)
-    relations = defaultdict(int)
+    entities = defaultdict(int) #{涉及到的实体id:出现次数}
+    entity_types = defaultdict(int) 
+    relations = defaultdict(int) #{与used_fbkeys有关的关系，兄弟的关系}
     vocabs = defaultdict(int)
     if not used_fbkeys:
         used_fbkeys = kb.keys()
@@ -47,15 +47,15 @@ def build_kb_data(kb, used_fbkeys=None):
             vocabs[token] += 1
         if not 'neighbors' in v:
             continue
-        for kk, vv in v['neighbors'].items(): # 1st hop
-            if if_filterout(kk):
+        for kk, vv in v['neighbors'].items(): # 1st hop neighbors的value是个字典 {关系：[一个list，与当前实体具有kk关系的所有实体]}
+            if if_filterout(kk): #以特定字符串结尾的关系扔掉
                 continue
-            relations[kk] += 1
+            relations[kk] += 1 #与used_fbkeys相连的关系都有哪些
             # Add relation vocabs
             for token in [x for x in kk.lower().split('/')[-1].split('_')]:
-                vocabs[token] += 1
-            for nbr in vv:
-                if isinstance(nbr, str):
+                vocabs[token] += 1 #vocabs里只要/最后一部分
+            for nbr in vv: #nbr是一个与当前实体具有kk关系的实体，当前实体的兄弟结点，dict
+                if isinstance(nbr, str): #isinstance判断变量是不是str的一个实例（判断变量是不是str类型）
                     for token in [y for y in tokenize(nbr.lower())]:
                         vocabs[token] += 1
                     continue
@@ -64,20 +64,20 @@ def build_kb_data(kb, used_fbkeys=None):
                 elif isinstance(nbr, float):
                     continue
                     # vocabs.update([y for y in tokenize(str(nbr).lower())])
-                elif isinstance(nbr, dict):
-                    nbr_k = list(nbr.keys())[0]
-                    nbr_v = nbr[nbr_k]
+                elif isinstance(nbr, dict): #如果这个兄弟是个dict，说明他是一个真正的实体，复杂的实体
+                    nbr_k = list(nbr.keys())[0] #兄弟实体的id
+                    nbr_v = nbr[nbr_k] #兄弟实体的value，dict，包括name、alias。。。
                     entities[nbr_k] += 1
                     selected_types = (nbr_v['notable_types'] + nbr_v['type'])[:ENT_TYPE_HOP]
                     for ent_type in selected_types:
                         entity_types[ent_type] += 1
-                    selected_names = (nbr_v['name'] + nbr_v['alias'])[:1]
+                    selected_names = (nbr_v['name'] + nbr_v['alias'])[:1] #兄弟实体只用了一个别名（当前实体用所有别名）
                     for token in [y for x in selected_names for y in tokenize(x.lower())] + \
                         [y for x in selected_types for y in x.lower().split('/')[-1].split('_')]:
                         vocabs[token] += 1
                     if not 'neighbors' in nbr_v:
                         continue
-                    for kkk, vvv in nbr_v['neighbors'].items(): # 2nd hop
+                    for kkk, vvv in nbr_v['neighbors'].items(): # 2nd hop 当前实体的兄弟的兄弟，同上
                         if if_filterout(kkk):
                             continue
                         relations[kkk] += 1
@@ -95,8 +95,8 @@ def build_kb_data(kb, used_fbkeys=None):
                                 # vocabs.update([y for y in tokenize(str(nbr_nbr).lower())])
                                 continue
                             elif isinstance(nbr_nbr, dict):
-                                nbr_nbr_k = list(nbr_nbr.keys())[0]
-                                nbr_nbr_v = nbr_nbr[nbr_nbr_k]
+                                nbr_nbr_k = list(nbr_nbr.keys())[0] #id
+                                nbr_nbr_v = nbr_nbr[nbr_nbr_k] #dict 实体属性们
                                 entities[nbr_nbr_k] += 1
                                 selected_types = (nbr_nbr_v['notable_types'] + nbr_nbr_v['type'])[:ENT_TYPE_HOP]
                                 for ent_type in selected_types:
